@@ -9,11 +9,20 @@ local sourceurl = args[1]
 -- the .lua extension
 local destination = args[2]
 
+local dependencies = {}
+
 --- Load the given file and save it to the destination as a lua file.
-function loadfile(url, savelocation)
-  local filetext = textfromurl(url)
-  print("Writing to " .. savelocation)
-  writefile(savelocation .. ".lua", filetext)
+function loadfile(url, savelocation, existingdependencies)
+  if existingdependencies[savelocation] ~= nil then
+    existingdependencies[savelocation] = true
+    print("Loading from " .. url)
+    local filetext = textfromurl(url)
+    print("Writing to " .. savelocation)
+    writefile(savelocation .. ".lua", filetext)
+    loaddependencies(filetext, existingdependencies)
+  else
+    print("Dependency " .. savelocation .. " already loaded")
+  end
 end
 
 --- Send a request to the given URL and return the result as a string.
@@ -33,6 +42,46 @@ function writefile(location, text)
   file = io.open(location, "w")
   file:write(text)
   file:close()
+end
+
+--- Load the files upon which the target file depends.
+function loaddependencies(filetext, existingdependencies)
+  local lines = splitstring(filetext, "\n")
+  local hascommand = startswith("-- gerald:dependency")
+  for _, line in ipairs(lines) do
+    if hascommand(line) then
+      local location = splitstring(line, " ")[3]
+      error "NYI"
+    end
+  end
+end
+
+--- Split a string at each instance of a separator.
+function splitstring(string, separator)
+  local segments = {}
+  local start = 1
+  for i = 1, #string do
+    local c = string:sub(i, i)
+    if c == separator then
+      table.insert(segments, string:sub(start, i - 1))
+      start = i + 1
+    end
+  end
+  table.insert(segments, string:sub(start, #string))
+  return segments
+end
+
+--- Return a function that determines whether a string starts
+-- with a given substring.
+function startswith(substring)
+  local length = string.len(substring)
+  function apply(outerstring)
+    return (
+      string.len(outerstring) >= length and
+      string.sub(outerstring) == substring
+    )
+  end
+  return apply
 end
 
 loadfile(sourceurl, destination)
