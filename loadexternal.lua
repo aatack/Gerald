@@ -71,6 +71,22 @@ function splitstring(string, separator)
   return segments
 end
 
+--- Join an array of strings with a delimiter.
+function joinstring(segments, delimiter)
+  if #segments == 0 then
+    return ""
+  end
+  local result = segments[1]
+  if #segments == 1 then
+    return result
+  end
+
+  for i = 2, #segments do
+    result = result .. delimiter .. segments[i]
+  end
+  return result
+end
+
 --- Return a function that determines whether a string starts
 -- with a given substring.
 function startswith(substring)
@@ -82,6 +98,37 @@ function startswith(substring)
     )
   end
   return apply
+end
+
+--- Return an object with a number of functions for editing URLs.
+function urleditor(baseurl)
+  return {
+    url = baseurl,
+
+    copy = function(_)
+      return urleditor(baseurl)
+    end,
+
+    _navigatesegment = function(self, segment)
+      if segment == ".." then
+        table.remove(self.url, #self.url)
+      elseif segment == "." then
+        -- Do nothing
+      else
+        table.insert(self, segment)
+      end
+    end,
+
+    navigate = function(self, path)
+      for _, segment in ipairs(splitstring(path, "/")) do
+        self:_navigatesegment(segment)
+      end
+    end,
+
+    export = function(self)
+      return stringjoin(self.url, "/")
+    end
+  }
 end
 
 loadfile(sourceurl, destination)
