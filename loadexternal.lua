@@ -101,32 +101,37 @@ function startswith(substring)
 end
 
 --- Return an object with a number of functions for editing URLs.
-function urleditor(baseurl)
+function navigator(basepath)
+  local path = basepath
+  if type(path) == "string" then
+    path = stringsplit(path, "/")
+  end
+
   return {
-    url = baseurl,
+    _path = path,
 
     copy = function(_)
-      return urleditor(baseurl)
+      return navigator(basepath)
     end,
 
-    _navigatesegment = function(self, segment)
-      if segment == ".." then
-        table.remove(self.url, #self.url)
-      elseif segment == "." then
-        -- Do nothing
-      else
-        table.insert(self, segment)
-      end
-    end,
-
-    navigate = function(self, path)
-      for _, segment in ipairs(splitstring(path, "/")) do
+    navigate = function(self, subpath)
+      for _, segment in ipairs(splitstring(subpath, "/")) do
         self:_navigatesegment(segment)
       end
     end,
 
     export = function(self)
-      return stringjoin(self.url, "/")
+      return stringjoin(self._path, "/")
+    end,
+
+    _navigatesegment = function(self, segment)
+      if segment == ".." then
+        table.remove(self._path, #self._path)
+      elseif segment == "." then
+        -- Do nothing
+      else
+        table.insert(self, segment)
+      end
     end
   }
 end
