@@ -13,11 +13,12 @@ local destination = args[2]
 -- given URL to the local file system.
 function loadfilesystem(srcpath, dstpath)
   local loadedfiles = {}
-  local queuedfiles = {srcpath:export() = true}
+  local queuedfiles = {}
+  queuedfiles[srcpath:export()] = true
 
   print("Loading file system...")
 
-  while #queuedfiles > 0 do
+  while nkeys(queuedfiles) > 0 do
     local filetoload = pop(queuedfiles)
     loadedfiles[filetoload] = true
     local dependencies = loadfile(
@@ -152,6 +153,7 @@ function navigator(basepath)
       for _, segment in ipairs(segments) do
         self:_navigatesegment(segment)
       end
+      return self
     end,
 
     export = function(self)
@@ -181,6 +183,15 @@ function pop(keytable)
   end
   keytable[firstkey] = nil
   return firstkey
+end
+
+--- Return the number of keys in the table.
+function nkeys(keytable)
+  local count = 0
+  for _1, _2 in pairs(keytable) Do
+    count = count + 1
+  end
+  return count
 end
 
 loadfilesystem(navigator(sourceurl), navigator(destination))
