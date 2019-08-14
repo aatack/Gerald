@@ -9,26 +9,50 @@ local sourceurl = args[1]
 -- the .lua extension
 local destination = args[2]
 
-local dependencies = {}
+--- Load the file, along with any dependencies it points to, from the
+-- given URL to the local file system.
+function loadfilesystem(srcpath, dstpath)
+  local loadedfiles = {}
+  local queuedfiles = {srcpath:export() = true}
 
---- Load the given file and save it to the destination as a lua file.
-function loadfile(url, savelocation, existingdependencies)
-  if existingdependencies[savelocation] ~= nil then
-    existingdependencies[savelocation] = true
-    print("Loading from " .. url)
-    local filetext = textfromurl(url)
-    print("Writing to " .. savelocation)
-    writefile(savelocation .. ".lua", filetext)
-    loaddependencies(filetext, existingdependencies)
-  else
-    print("Dependency " .. savelocation .. " already loaded")
+  print("Loading file system...")
+
+  while #queuedfiles > 0 do
+    local filetoload = pop(queuedfiles)
+    loadedfiles[filetoload] = true
+    local dependencies = loadfile(
+      srcpath:copy():navigate(filetoload), dstpath:copy():navigate(filetoload)
+    )
+    for _, dependency in ipairs(dependencies) do
+      if loadedfiles[dependency] == nil then
+        queuedfiles[dependency] = true
+      end
+    end
   end
+
+  print("Finished loading file system.")
 end
 
---- Send a request to the given URL and return the result as a string.
-function textfromurl(url)
+--- Load the given file and save it to the destination as a lua file.
+-- The source and destination paths (where the source refers to a URL
+-- and destination refers to a local file) should both be given in the
+-- form of navigators.  Returns a list of dependencies, specified by
+-- their paths relative to the root file.
+function loadfile(srcpath, dstpath)
+  print("  Loading from " .. srcpath:export())
+  local filetext = textfromurl(srcpath)
+  print("  Writing to " .. dstpath:export())
+  writefile(dstpath:export() .. ".lua", filetext)
+  local dependencies = getdependencies(filetext)
+  print("Found " .. #dependencies  .. " dependencies")
+  return dependencies
+end
+
+--- Send a request to the given URL and return the result as a string.  The
+-- URL is assumed to be specified in the form of a navigator object.
+function textfromurl(urlpath)
   local output = ""
-  local response = internet.request(url)
+  local response = internet.request(urlpath:export())
 
   for section in response do
     output = output .. section
@@ -44,16 +68,21 @@ function writefile(location, text)
   file:close()
 end
 
---- Load the files upon which the target file depends.
-function loaddependencies(filetext, existingdependencies)
+--- Return paths - as strings - pointing to the dependencies of the given
+-- file from the root file.
+function getdependencies(filetext)
+  local dependencies = {}
   local lines = splitstring(filetext, "\n")
   local hascommand = startswith("-- gerald:dependency")
+
   for _, line in ipairs(lines) do
     if hascommand(line) then
-      local location = splitstring(line, " ")[3]
-      error "NYI"
+      local absolutepath = splitstring(line, " ")[3]
+      table.insert(dependencies, absolutepath)
     end
   end
+
+  return dependencies
 end
 
 --- Split a string at each instance of a separator.
@@ -141,5 +170,18 @@ function navigator(basepath)
   }
 end
 
-loadfile(sourceurl, destination)
+--- Given a table consisting of key-value pairs, in which the values
+-- are assumed to be irrelevant, remove a key-value pair from the table
+-- and return its key.  The order in which keys are removed is undefined.
+function pop(keytable)
+  local firstkey
+  for key, _ in pairs(keytable) do
+    firstkey = key
+    break
+  end
+  keytable[firstkey] = nil
+  return firstkey
+end
+
+loadfilesystem(navigator(sourceurl), navigator(destination))
 computer.shutdown(true)
