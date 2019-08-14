@@ -104,7 +104,7 @@ end
 function navigator(basepath)
   local path = basepath
   if type(path) == "string" then
-    path = stringsplit(path, "/")
+    path = splitstring(path, "/")
   end
 
   return {
@@ -115,22 +115,27 @@ function navigator(basepath)
     end,
 
     navigate = function(self, subpath)
-      for _, segment in ipairs(splitstring(subpath, "/")) do
+      local segments = subpath
+      if type(subpath) == "string" then
+        segments = splitstring(segments, "/")
+      end
+
+      for _, segment in ipairs(segments) do
         self:_navigatesegment(segment)
       end
     end,
 
     export = function(self)
-      return stringjoin(self._path, "/")
+      return joinstring(self._path, "/")
     end,
 
     _navigatesegment = function(self, segment)
       if segment == ".." then
         table.remove(self._path, #self._path)
-      elseif segment == "." then
+      elseif segment == "." or string.len(segment) == 0 then
         -- Do nothing
       else
-        table.insert(self, segment)
+        table.insert(self._path, segment)
       end
     end
   }
