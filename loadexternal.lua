@@ -1,5 +1,6 @@
 local internet = require "internet"
 local computer = require "computer"
+local filesystem = require "filesystem"
 
 local args = {...}
 
@@ -12,9 +13,12 @@ local destination = args[2]
 --- Load the file, along with any dependencies it points to, from the
 -- given URL to the local file system.
 function loadfilesystem(srcpath, dstpath)
+  local urlroot = srcpath:copy():navigate("..")
+  local localroot = dstpath:copy()
+
   local loadedfiles = {}
   local queuedfiles = {}
-  queuedfiles[srcpath:export()] = true
+  queuedfiles[srcpath:final()] = true
 
   print("Loading file system...")
 
@@ -22,7 +26,7 @@ function loadfilesystem(srcpath, dstpath)
     local filetoload = pop(queuedfiles)
     loadedfiles[filetoload] = true
     local dependencies = loadfile(
-      srcpath:copy():navigate(filetoload), dstpath:copy():navigate(filetoload)
+      urlroot:copy():navigate(filetoload), localroot:copy():navigate(filetoload)
     )
     for _, dependency in ipairs(dependencies) do
       if loadedfiles[dependency] == nil then
@@ -40,10 +44,9 @@ end
 -- form of navigators.  Returns a list of dependencies, specified by
 -- their paths relative to the root file.
 function loadfile(srcpath, dstpath)
-  print("  Loading from " .. srcpath:export())
+  print("  Loading  " .. srcpath:export() .. " -> " .. dstpath:export())
   local filetext = textfromurl(srcpath)
-  print("  Writing to " .. dstpath:export())
-  writefile(dstpath:export() .. ".lua", filetext)
+  writefile(dstpath:export(), filetext)
   local dependencies = getdependencies(filetext)
   print("Found " .. #dependencies  .. " dependencies")
   return dependencies
@@ -64,7 +67,8 @@ end
 --- Write text to the given file.  The extension should be included in
 -- the file's location.
 function writefile(location, text)
-  file = io.open(location, "w")
+  filesystem.makeDirectory(filesystem.path(location))
+  local file = filesystem.open(location, "w")
   file:write(text)
   file:close()
 end
@@ -124,7 +128,7 @@ function startswith(substring)
   function apply(outerstring)
     return (
       string.len(outerstring) >= length and
-      string.sub(outerstring) == substring
+      string.sub(outerstring, 1, length) == substring
     )
   end
   return apply
@@ -140,8 +144,8 @@ function navigator(basepath)
   return {
     _path = path,
 
-    copy = function(_)
-      return navigator(basepath)
+    copy = function(self)
+      return navigator(self:export())
     end,
 
     navigate = function(self, subpath)
@@ -168,6 +172,10 @@ function navigator(basepath)
       else
         table.insert(self._path, segment)
       end
+    end,
+
+    final = function(self)
+      return self._path[#self._path]
     end
   }
 end
@@ -188,7 +196,7 @@ end
 --- Return the number of keys in the table.
 function nkeys(keytable)
   local count = 0
-  for _1, _2 in pairs(keytable) Do
+  for _1, _2 in pairs(keytable) do
     count = count + 1
   end
   return count
